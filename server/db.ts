@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, exams, InsertExam } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,21 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function insertExam(data: InsertExam) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(exams).values(data);
+  return result;
+}
+
+export async function updateExamPdfs(id: number, examPdfKey: string, answerPdfKey: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(exams).set({ examPdfKey, answerPdfKey }).where(eq(exams.id, id));
+}
+
+export async function getRecentExams(limit = 10) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(exams).orderBy(desc(exams.createdAt)).limit(limit);
+}

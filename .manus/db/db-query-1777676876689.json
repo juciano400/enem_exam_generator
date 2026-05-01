@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `exams` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`discipline` varchar(64) NOT NULL,\n\t`questionCount` int NOT NULL,\n\t`topics` text NOT NULL,\n\t`questions` json NOT NULL,\n\t`examPdfKey` varchar(512),\n\t`answerPdfKey` varchar(512),\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `exams_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user A6SUsyLtCq2qVaD.root --database e3fdVPryvkk7rKQX9vB5Uv --execute CREATE TABLE `exams` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`discipline` varchar(64) NOT NULL,\n\t`questionCount` int NOT NULL,\n\t`topics` text NOT NULL,\n\t`questions` json NOT NULL,\n\t`examPdfKey` varchar(512),\n\t`answerPdfKey` varchar(512),\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `exams_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2148
+}
