@@ -33,7 +33,7 @@ export async function generateQuestions(input: GenerateQuestionsInput): Promise<
   if (!apiKey) throw new Error("GEMINI_API_KEY não configurada");
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   const disciplineContext = DISCIPLINE_CONTEXT[input.discipline] || input.discipline;
 
