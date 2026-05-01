@@ -21,3 +21,13 @@
 ## Qualidade
 - [x] Testes vitest para procedure de geração
 - [x] Tratamento de erros (Gemini indisponível, limite de questões, etc.)
+
+## Template Word Customizado
+- [x] Instalar dependências: python-docx via subprocess (Node chamando Python)
+- [x] Endpoint de upload de template .docx no backend (multipart/form-data via multer)
+- [x] Função `injectQuestionsIntoDocx`: abre o template .docx, insere questões no corpo preservando cabeçalho/rodapé/imagens
+- [x] Converter .docx preenchido para PDF via LibreOffice headless
+- [x] Rota Express `/api/exam/generate-with-template` com multer
+- [x] UI: toggle "Padrão ENEM" vs "Meu Template" na página de formulário
+- [x] UI: área de upload de .docx com drag-and-drop e preview do nome do arquivo
+- [x] Testes para validação de template e processamento

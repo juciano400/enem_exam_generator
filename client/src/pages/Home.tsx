@@ -2,6 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import ExamForm from "@/components/ExamForm";
+import type { ExamFormValues } from "@/components/ExamForm";
 import ExamResult from "@/components/ExamResult";
 import type { Question } from "../../../server/gemini";
 
@@ -12,11 +13,13 @@ export interface ExamData {
   discipline: string;
   questionCount: number;
   topics: string;
+  usedTemplate?: boolean;
 }
 
 export default function Home() {
   const [examData, setExamData] = useState<ExamData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingMode, setGeneratingMode] = useState<"enem" | "template">("enem");
 
   const generateMutation = trpc.exam.generate.useMutation({
     onSuccess: (data) => {
@@ -31,14 +34,46 @@ export default function Home() {
     },
   });
 
-  function handleGenerate(values: {
-    discipline: "Literatura" | "Gramática" | "Arte" | "História" | "Sociologia" | "Filosofia";
-    questionCount: number;
-    topics: string;
-  }) {
+  async function generateWithTemplate(values: ExamFormValues) {
+    if (!values.templateFile) return;
+    const formData = new FormData();
+    formData.append("template", values.templateFile);
+    formData.append("discipline", values.discipline);
+    formData.append("questionCount", String(values.questionCount));
+    formData.append("topics", values.topics);
+
+    try {
+      const res = await fetch("/api/exam/generate-with-template", {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Erro ao processar o template.");
+      }
+      setExamData(json as ExamData);
+      setIsGenerating(false);
+    } catch (err: unknown) {
+      setIsGenerating(false);
+      const message = err instanceof Error ? err.message : "Erro ao processar o template.";
+      toast.error("Erro ao gerar a prova", { description: message });
+    }
+  }
+
+  function handleGenerate(values: ExamFormValues) {
     setIsGenerating(true);
     setExamData(null);
-    generateMutation.mutate(values);
+    setGeneratingMode(values.useTemplate ? "template" : "enem");
+
+    if (values.useTemplate && values.templateFile) {
+      generateWithTemplate(values);
+    } else {
+      generateMutation.mutate({
+        discipline: values.discipline,
+        questionCount: values.questionCount,
+        topics: values.topics,
+      });
+    }
   }
 
   function handleReset() {
@@ -96,7 +131,7 @@ export default function Home() {
                 <p className="text-base text-muted-foreground leading-relaxed max-w-xl">
                   Informe a disciplina, os conteúdos e a quantidade de questões. A inteligência
                   artificial gera uma prova completa com gabarito e explicações, pronta para download
-                  em PDF.
+                  em PDF — no padrão ENEM ou no seu próprio template Word.
                 </p>
               </div>
 
@@ -107,18 +142,24 @@ export default function Home() {
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
                   onClick={(e) => {
                     e.preventDefault();
-                    document.getElementById('exam-form')?.scrollIntoView({ behavior: 'smooth' });
+                    document.getElementById("exam-form")?.scrollIntoView({ behavior: "smooth" });
                   }}
                 >
                   Gerar prova agora
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
                 </a>
                 <span className="text-xs text-muted-foreground">Gratuito · Sem cadastro</span>
               </div>
 
-              {/* Discipline pills */}
+              {/* Feature pills */}
               <div className="flex flex-wrap gap-2 mt-8">
                 {["Literatura", "Gramática", "Arte", "História", "Sociologia", "Filosofia"].map(
                   (d) => (
@@ -130,6 +171,9 @@ export default function Home() {
                     </span>
                   )
                 )}
+                <span className="text-xs px-3 py-1.5 rounded-full border border-amber-200 text-amber-700 bg-amber-50">
+                  Template Word
+                </span>
               </div>
             </section>
 
@@ -153,7 +197,10 @@ export default function Home() {
                 <div className="absolute inset-0 rounded-full border-2 border-border" />
                 <div className="absolute inset-0 rounded-full border-2 border-primary border-t-transparent animate-spin" />
                 <div className="absolute inset-3 rounded-full bg-primary/10 flex items-center justify-center">
-                  <span className="text-primary text-lg" style={{ fontFamily: "'Playfair Display', serif" }}>
+                  <span
+                    className="text-primary text-lg"
+                    style={{ fontFamily: "'Playfair Display', serif" }}
+                  >
                     E
                   </span>
                 </div>
@@ -162,11 +209,14 @@ export default function Home() {
                 className="text-xl font-semibold text-foreground mb-2"
                 style={{ fontFamily: "'Playfair Display', serif" }}
               >
-                Elaborando sua prova
+                {generatingMode === "template"
+                  ? "Preenchendo seu template"
+                  : "Elaborando sua prova"}
               </h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                O Gemini está criando questões no padrão ENEM com contextualização, enunciados e
-                alternativas. Isso pode levar alguns instantes.
+                {generatingMode === "template"
+                  ? "O Gemini está criando as questões e inserindo no seu modelo Word, preservando cabeçalho, logo e rodapé."
+                  : "O Gemini está criando questões no padrão ENEM com contextualização, enunciados e alternativas. Isso pode levar alguns instantes."}
               </p>
               <div className="mt-6 flex justify-center gap-1.5">
                 {[0, 1, 2].map((i) => (
