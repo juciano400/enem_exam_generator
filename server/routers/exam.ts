@@ -15,6 +15,8 @@ export const examRouter = router({
         discipline: z.enum(DISCIPLINES),
         questionCount: z.number().int().min(5).max(45),
         topics: z.string().min(5).max(500),
+        serie: z.string().max(50).optional(),
+        turma: z.string().max(50).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -27,7 +29,7 @@ export const examRouter = router({
 
       // 2. Generate PDFs
       const [examPdfBytes, answerPdfBytes] = await Promise.all([
-        generateExamPDF(questions, input.discipline, input.topics),
+        generateExamPDF(questions, input.discipline, input.topics, input.serie, input.turma),
         generateAnswerPDF(questions, input.discipline),
       ]);
 

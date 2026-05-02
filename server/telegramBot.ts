@@ -10,11 +10,12 @@ const HELP_TEXT = `📚 *Gerador de Provas ENEM*
 *Opção 1 — Por tema:*
 /prova <disciplina> <quantidade> <conteúdos>
 Exemplo: \`/prova História 10 Revolução Industrial\`
+Com série/turma: \`/prova História 10 Revolução Industrial | 3ª série | Turma A\`
 
 *Opção 2 — Por material (foto ou PDF):*
 Envie uma foto ou PDF de páginas do livro/apostila com a legenda:
 \`<disciplina> <quantidade>\`
-Exemplo de legenda: \`História 10\`
+Com série/turma: \`História 10 | 3ª série | Turma A\`
 
 *Disciplinas disponíveis:*
 ${DISCIPLINES.map((d) => `• ${d}`).join("\n")}
@@ -40,13 +41,20 @@ function parseDiscipline(raw: string): Discipline | null {
 
 function parseDisciplineAndCount(
   text: string
-): { discipline: Discipline; questionCount: number } | null {
-  const parts = text.trim().split(/\s+/);
+): { discipline: Discipline; questionCount: number; serie?: string; turma?: string } | null {
+  // Support optional "| série | turma" suffix
+  const [main, serieRaw, turmaRaw] = text.split("|").map((s) => s.trim());
+  const parts = (main ?? "").trim().split(/\s+/);
   if (parts.length < 2) return null;
   const discipline = parseDiscipline(parts[0]);
   const questionCount = parseInt(parts[1], 10);
   if (!discipline || isNaN(questionCount) || questionCount < 5 || questionCount > 45) return null;
-  return { discipline, questionCount };
+  return {
+    discipline,
+    questionCount,
+    serie: serieRaw || undefined,
+    turma: turmaRaw || undefined,
+  };
 }
 
 async function downloadFile(bot: TelegramBot, fileId: string): Promise<Buffer> {
@@ -64,7 +72,9 @@ async function generateAndSendExam(
   questionCount: number,
   source:
     | { type: "topics"; topics: string }
-    | { type: "media"; fileId: string; mimeType: string }
+    | { type: "media"; fileId: string; mimeType: string },
+  serie?: string,
+  turma?: string
 ): Promise<void> {
   try {
     let questions;
@@ -85,7 +95,7 @@ async function generateAndSendExam(
       source.type === "topics" ? source.topics : "Material enviado";
 
     const [examPdfBytes, answerPdfBytes] = await Promise.all([
-      generateExamPDF(questions, discipline, topicsLabel),
+      generateExamPDF(questions, discipline, topicsLabel, serie, turma),
       generateAnswerPDF(questions, discipline),
     ]);
 
@@ -133,11 +143,14 @@ async function handleProvaCommand(
   chatId: number,
   args: string
 ): Promise<void> {
-  const parts = args.trim().split(/\s+/);
+  // Support optional "| série | turma" suffix
+  const [mainPart, serieRaw, turmaRaw] = args.split("|").map((s) => s.trim());
+  const parts = (mainPart ?? "").trim().split(/\s+/);
+
   if (parts.length < 3) {
     await bot.sendMessage(
       chatId,
-      "❌ Uso: `/prova <disciplina> <quantidade> <conteúdos>`\n\nExemplo:\n`/prova História 10 Revolução Industrial`",
+      "❌ Uso: `/prova <disciplina> <quantidade> <conteúdos>`\n\nExemplo:\n`/prova História 10 Revolução Industrial`\n`/prova História 10 Revolução Industrial | 3ª série | Turma A`",
       { parse_mode: "Markdown" }
     );
     return;
@@ -165,6 +178,9 @@ async function handleProvaCommand(
     return;
   }
 
+  const serie = serieRaw || undefined;
+  const turma = turmaRaw || undefined;
+
   const statusMsg = await bot.sendMessage(
     chatId,
     `⏳ Gerando prova de *${discipline}* — ${questionCount} questões sobre _${topics}_...`,
@@ -174,7 +190,7 @@ async function handleProvaCommand(
   await generateAndSendExam(bot, chatId, statusMsg.message_id, discipline, questionCount, {
     type: "topics",
     topics,
-  });
+  }, serie, turma);
 }
 
 async function handleMediaMessage(
@@ -198,13 +214,15 @@ async function handleMediaMessage(
       statusMsg.message_id,
       parsed.discipline,
       parsed.questionCount,
-      { type: "media", fileId, mimeType }
+      { type: "media", fileId, mimeType },
+      parsed.serie,
+      parsed.turma
     );
   } else {
     pendingMedia.set(chatId, { fileId, mimeType, expiresAt: Date.now() + PENDING_TTL_MS });
     await bot.sendMessage(
       chatId,
-      `📎 Material recebido! Agora me diga a *disciplina* e a *quantidade de questões*:\n\nExemplo: \`História 10\`\n\nDisciplinas: ${DISCIPLINES.join(", ")}`,
+      `📎 Material recebido! Agora me diga a *disciplina* e a *quantidade de questões*:\n\nExemplo: \`História 10\`\nCom série/turma: \`História 10 | 3ª série | Turma A\`\n\nDisciplinas: ${DISCIPLINES.join(", ")}`,
       { parse_mode: "Markdown" }
     );
   }
@@ -272,7 +290,7 @@ export function startTelegramBot(token: string): TelegramBot {
     if (!parsed) {
       await bot.sendMessage(
         msg.chat.id,
-        `❌ Formato inválido. Responda com: \`<disciplina> <quantidade>\`\n\nExemplo: \`História 10\`\n\nDisciplinas: ${DISCIPLINES.join(", ")}`,
+        `❌ Formato inválido. Responda com: \`<disciplina> <quantidade>\`\n\nExemplo: \`História 10\`\nCom série/turma: \`História 10 | 3ª série | Turma A\`\n\nDisciplinas: ${DISCIPLINES.join(", ")}`,
         { parse_mode: "Markdown" }
       );
       return;
@@ -292,7 +310,9 @@ export function startTelegramBot(token: string): TelegramBot {
       statusMsg.message_id,
       parsed.discipline,
       parsed.questionCount,
-      { type: "media", fileId: pending.fileId, mimeType: pending.mimeType }
+      { type: "media", fileId: pending.fileId, mimeType: pending.mimeType },
+      parsed.serie,
+      parsed.turma
     );
   });
 
