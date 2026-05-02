@@ -41,6 +41,8 @@ export default function Home() {
     formData.append("discipline", values.discipline);
     formData.append("questionCount", String(values.questionCount));
     formData.append("topics", values.topics);
+    if (values.serie) formData.append("serie", values.serie);
+    if (values.turma) formData.append("turma", values.turma);
 
     try {
       const res = await fetch("/api/exam/generate-with-template", {
@@ -72,6 +74,8 @@ export default function Home() {
         discipline: values.discipline,
         questionCount: values.questionCount,
         topics: values.topics,
+        serie: values.serie,
+        turma: values.turma,
       });
     }
   }

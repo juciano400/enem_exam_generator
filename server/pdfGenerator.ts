@@ -102,7 +102,9 @@ function drawSeparator(ctx: DrawContext) {
 export async function generateExamPDF(
   questions: Question[],
   discipline: string,
-  topics: string
+  topics: string,
+  serie?: string,
+  turma?: string
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -118,6 +120,16 @@ export async function generateExamPDF(
     x: MARGIN, y: ctx.y,
     size: 22, font: boldFont, color: COLORS.blue,
   });
+  // Série / Turma on the right of the title row
+  if (serie || turma) {
+    const tag = [serie, turma].filter(Boolean).join("  ·  Turma: ");
+    const label = serie ? `Série: ${tag}` : `Turma: ${turma}`;
+    const labelWidth = font.widthOfTextAtSize(label, 9);
+    ctx.page.drawText(label, {
+      x: PAGE_WIDTH - MARGIN - labelWidth, y: ctx.y,
+      size: 9, font: font, color: COLORS.mediumGray,
+    });
+  }
   ctx.y -= 28;
   ctx.page.drawText(discipline.toUpperCase(), {
     x: MARGIN, y: ctx.y,
@@ -264,11 +276,24 @@ export async function generateExamPDF(
   });
   ctx.y -= 30;
 
-  // Name/date fields
+  // Name/date fields — row 1
   ctx.page.drawRectangle({ x: MARGIN, y: ctx.y - 22, width: CONTENT_WIDTH * 0.65, height: 22, color: COLORS.veryLightGray });
   ctx.page.drawText("Nome:", { x: MARGIN + 8, y: ctx.y - 14, size: 9, font: boldFont, color: COLORS.darkGray });
   ctx.page.drawRectangle({ x: MARGIN + CONTENT_WIDTH * 0.67, y: ctx.y - 22, width: CONTENT_WIDTH * 0.33, height: 22, color: COLORS.veryLightGray });
   ctx.page.drawText("Data:", { x: MARGIN + CONTENT_WIDTH * 0.67 + 8, y: ctx.y - 14, size: 9, font: boldFont, color: COLORS.darkGray });
+  ctx.y -= 28;
+
+  // Série/Turma fields — row 2
+  ctx.page.drawRectangle({ x: MARGIN, y: ctx.y - 22, width: CONTENT_WIDTH * 0.45, height: 22, color: COLORS.veryLightGray });
+  ctx.page.drawText("Série:", { x: MARGIN + 8, y: ctx.y - 14, size: 9, font: boldFont, color: COLORS.darkGray });
+  if (serie) {
+    ctx.page.drawText(serie, { x: MARGIN + 40, y: ctx.y - 14, size: 9, font: font, color: COLORS.black });
+  }
+  ctx.page.drawRectangle({ x: MARGIN + CONTENT_WIDTH * 0.47, y: ctx.y - 22, width: CONTENT_WIDTH * 0.53, height: 22, color: COLORS.veryLightGray });
+  ctx.page.drawText("Turma:", { x: MARGIN + CONTENT_WIDTH * 0.47 + 8, y: ctx.y - 14, size: 9, font: boldFont, color: COLORS.darkGray });
+  if (turma) {
+    ctx.page.drawText(turma, { x: MARGIN + CONTENT_WIDTH * 0.47 + 48, y: ctx.y - 14, size: 9, font: font, color: COLORS.black });
+  }
   ctx.y -= 40;
 
   // Answer grid

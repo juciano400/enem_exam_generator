@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -26,6 +27,8 @@ export interface ExamFormValues {
   discipline: Discipline;
   questionCount: number;
   topics: string;
+  serie?: string;
+  turma?: string;
   templateFile?: File;
   useTemplate: boolean;
 }
@@ -48,6 +51,8 @@ export default function ExamForm({ onGenerate }: ExamFormProps) {
   const [discipline, setDiscipline] = useState<Discipline | "">("");
   const [questionCount, setQuestionCount] = useState(10);
   const [topics, setTopics] = useState("");
+  const [serie, setSerie] = useState("");
+  const [turma, setTurma] = useState("");
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -112,6 +117,8 @@ export default function ExamForm({ onGenerate }: ExamFormProps) {
       discipline: discipline as Discipline,
       questionCount,
       topics,
+      serie: serie.trim() || undefined,
+      turma: turma.trim() || undefined,
       templateFile: templateFile ?? undefined,
       useTemplate: mode === "template",
     });
@@ -357,6 +364,34 @@ export default function ExamForm({ onGenerate }: ExamFormProps) {
                   {n}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Série / Turma */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-foreground">
+                Série <span className="text-muted-foreground font-normal">(opcional)</span>
+              </Label>
+              <Input
+                value={serie}
+                onChange={(e) => setSerie(e.target.value)}
+                placeholder="Ex: 3ª série"
+                maxLength={50}
+                className="h-10 bg-card border-border text-foreground placeholder:text-muted-foreground/60"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-foreground">
+                Turma <span className="text-muted-foreground font-normal">(opcional)</span>
+              </Label>
+              <Input
+                value={turma}
+                onChange={(e) => setTurma(e.target.value)}
+                placeholder="Ex: Turma A"
+                maxLength={50}
+                className="h-10 bg-card border-border text-foreground placeholder:text-muted-foreground/60"
+              />
             </div>
           </div>
         </div>
