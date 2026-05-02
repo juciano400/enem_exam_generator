@@ -13,14 +13,16 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB max
   fileFilter: (_req, file, cb) => {
-    if (
-      file.mimetype ===
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-      file.originalname.endsWith(".docx")
-    ) {
+    const isDocx =
+      file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      file.originalname.endsWith(".docx");
+    const isDoc =
+      file.mimetype === "application/msword" ||
+      file.originalname.endsWith(".doc");
+    if (isDocx || isDoc) {
       cb(null, true);
     } else {
-      cb(new Error("Apenas arquivos .docx são aceitos como template."));
+      cb(new Error("Apenas arquivos .doc ou .docx são aceitos como template."));
     }
   },
 });
@@ -53,9 +55,11 @@ router.post(
         return;
       }
       if (!req.file) {
-        res.status(400).json({ error: "Arquivo de template .docx é obrigatório." });
+        res.status(400).json({ error: "Arquivo de template .doc ou .docx é obrigatório." });
         return;
       }
+
+      const originalExt = req.file.originalname.endsWith(".doc") ? "doc" : "docx";
 
       // 1. Generate questions with Gemini
       const questions = await generateQuestions({
@@ -68,7 +72,8 @@ router.post(
       const { examPdfBytes, answerPdfBytes } = await processTemplate(
         req.file.buffer,
         questions,
-        discipline
+        discipline,
+        originalExt
       );
 
       // 3. Upload PDFs to storage

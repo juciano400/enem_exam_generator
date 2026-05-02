@@ -24,20 +24,31 @@ async function ensureTmpDir(dir: string) {
 export async function processTemplate(
   templateBytes: Buffer,
   questions: Question[],
-  discipline: string
+  discipline: string,
+  originalExt = "docx"
 ): Promise<TemplateResult> {
   const workDir = join(tmpdir(), `exam_${nanoid()}`);
   await ensureTmpDir(workDir);
 
+  const uploadedPath = join(workDir, `template.${originalExt}`);
   const templatePath = join(workDir, "template.docx");
   const questionsPath = join(workDir, "questions.json");
   const examDocxPath = join(workDir, "prova.docx");
   const answerDocxPath = join(workDir, "gabarito.docx");
 
   try {
-    // Write template and questions to temp files
-    await writeFile(templatePath, templateBytes);
+    await writeFile(uploadedPath, templateBytes);
     await writeFile(questionsPath, JSON.stringify(questions), "utf-8");
+
+    // .doc must be converted to .docx before python-docx can read it
+    if (originalExt === "doc") {
+      await execFileAsync("libreoffice", [
+        "--headless",
+        "--convert-to", "docx",
+        "--outdir", workDir,
+        uploadedPath,
+      ]);
+    }
 
     // Generate exam docx
     await execFileAsync("python3", [

@@ -65,11 +65,15 @@ export default function ExamForm({ onGenerate }: ExamFormProps) {
     setErrors((e) => ({ ...e, discipline: "" }));
   }
 
+  function isValidTemplate(name: string) {
+    return name.endsWith(".docx") || name.endsWith(".doc");
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.name.endsWith(".docx")) {
-      setErrors((err) => ({ ...err, template: "Apenas arquivos .docx são aceitos." }));
+    if (!isValidTemplate(file.name)) {
+      setErrors((err) => ({ ...err, template: "Apenas arquivos .doc ou .docx são aceitos." }));
       return;
     }
     if (file.size > 20 * 1024 * 1024) {
@@ -88,8 +92,8 @@ export default function ExamForm({ onGenerate }: ExamFormProps) {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
-    if (!file.name.endsWith(".docx")) {
-      setErrors((err) => ({ ...err, template: "Apenas arquivos .docx são aceitos." }));
+    if (!isValidTemplate(file.name)) {
+      setErrors((err) => ({ ...err, template: "Apenas arquivos .doc ou .docx são aceitos." }));
       return;
     }
     setTemplateFile(file);
@@ -102,7 +106,7 @@ export default function ExamForm({ onGenerate }: ExamFormProps) {
     if (!topics.trim() || topics.trim().length < 5)
       newErrors.topics = "Descreva os conteúdos (mínimo 5 caracteres)";
     if (mode === "template" && !templateFile)
-      newErrors.template = "Faça o upload do seu template .docx";
+      newErrors.template = "Faça o upload do seu template .doc ou .docx";
     return newErrors;
   }
 
@@ -195,7 +199,7 @@ export default function ExamForm({ onGenerate }: ExamFormProps) {
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">Meu Template</p>
-                <p className="text-xs text-muted-foreground">Use seu modelo .docx personalizado</p>
+                <p className="text-xs text-muted-foreground">Use seu modelo .doc ou .docx personalizado</p>
               </div>
             </div>
           </button>
@@ -223,7 +227,7 @@ export default function ExamForm({ onGenerate }: ExamFormProps) {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               onChange={handleFileChange}
               className="hidden"
             />
@@ -285,7 +289,7 @@ export default function ExamForm({ onGenerate }: ExamFormProps) {
                   Arraste o arquivo ou clique para selecionar
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Formato .docx · Máximo 20 MB · Cabeçalho, logo e rodapé serão preservados
+                  Formato .doc ou .docx · Máximo 20 MB · Cabeçalho, logo e rodapé serão preservados
                 </p>
               </div>
             )}
