@@ -78,6 +78,8 @@ async function generateAndSendExam(
 ): Promise<void> {
   try {
     let questions;
+    let sourceImageBuffer: Buffer | undefined;
+    let sourceImageMime: string | undefined;
 
     if (source.type === "topics") {
       questions = await generateQuestions({ discipline, questionCount, topics: source.topics });
@@ -89,13 +91,18 @@ async function generateAndSendExam(
         questionCount,
         discipline,
       });
+      // Embed the original image in the exam PDF when the source is an image
+      if (source.mimeType.startsWith("image/")) {
+        sourceImageBuffer = buffer;
+        sourceImageMime   = source.mimeType;
+      }
     }
 
     const topicsLabel =
       source.type === "topics" ? source.topics : "Material enviado";
 
     const [examPdfBytes, answerPdfBytes] = await Promise.all([
-      generateExamPDF(questions, discipline, topicsLabel, serie, turma),
+      generateExamPDF(questions, discipline, topicsLabel, serie, turma, sourceImageBuffer, sourceImageMime),
       generateAnswerPDF(questions, discipline),
     ]);
 
