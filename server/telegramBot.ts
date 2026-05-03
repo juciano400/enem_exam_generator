@@ -13,15 +13,16 @@ const HELP_TEXT = `📚 *Gerador de Provas ENEM*
 Exemplo: \`/prova História 10 Revolução Industrial\`
 Com série/turma: \`/prova História 10 Revolução Industrial | 3ª série | Turma A\`
 
-*Opção 2 — Por material (foto ou PDF):*
+*Opção 2 — Com layout Word (.docx/.doc):*
+/layout <disciplina> <quantidade> <conteúdos>
+Exemplo: \`/layout História 10 Revolução Industrial\`
+O bot pedirá o arquivo .docx em seguida.
+_(ou envie o .docx direto com a legenda no formato acima)_
+
+*Opção 3 — Por material (foto ou PDF):*
 Envie uma foto ou PDF com a legenda:
 \`<disciplina> <quantidade>\`
 Com série/turma: \`História 10 | 3ª série | Turma A\`
-
-*Opção 3 — Com template Word (.docx/.doc):*
-Envie um arquivo .docx ou .doc com a legenda:
-\`<disciplina> <quantidade> <conteúdos>\`
-Com série/turma: \`História 10 Revolução Industrial | 3ª série | Turma A\`
 
 *Disciplinas disponíveis:*
 ${DISCIPLINES.map((d) => `• ${d}`).join("\n")}
@@ -44,9 +45,20 @@ interface PendingTemplate {
   expiresAt: number;
 }
 
-const pendingMedia    = new Map<number, PendingMedia>();
-const pendingTemplate = new Map<number, PendingTemplate>();
-const PENDING_TTL_MS  = 5 * 60 * 1000; // 5 minutes
+// Aguardando envio do arquivo .docx após comando /layout
+interface PendingLayoutRequest {
+  discipline: Discipline;
+  questionCount: number;
+  topics: string;
+  serie?: string;
+  turma?: string;
+  expiresAt: number;
+}
+
+const pendingMedia         = new Map<number, PendingMedia>();
+const pendingTemplate      = new Map<number, PendingTemplate>();
+const pendingLayoutRequest = new Map<number, PendingLayoutRequest>();
+const PENDING_TTL_MS       = 5 * 60 * 1000; // 5 minutes
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
 
@@ -286,6 +298,31 @@ async function handleProvaCommand(
   );
 }
 
+async function handleLayoutCommand(
+  bot: TelegramBot,
+  chatId: number,
+  args: string
+): Promise<void> {
+  const parsed = parseProvaArgs(args);
+
+  if (!parsed) {
+    await bot.sendMessage(
+      chatId,
+      "❌ Uso: `/layout <disciplina> <quantidade> <conteúdos>`\n\nExemplo:\n`/layout História 10 Revolução Industrial`\n`/layout História 10 Revolução Industrial | 3ª série | Turma A`",
+      { parse_mode: "Markdown" }
+    );
+    return;
+  }
+
+  pendingLayoutRequest.set(chatId, { ...parsed, expiresAt: Date.now() + PENDING_TTL_MS });
+
+  await bot.sendMessage(
+    chatId,
+    `📄 Certo! Prova de *${parsed.discipline}* — ${parsed.questionCount} questões sobre _${parsed.topics}_.\n\nAgora envie o arquivo *.docx* ou *.doc* com o layout da prova.`,
+    { parse_mode: "Markdown" }
+  );
+}
+
 async function handleMediaMessage(
   bot: TelegramBot,
   chatId: number,
@@ -365,6 +402,10 @@ export function startTelegramBot(token: string): TelegramBot {
     await handleProvaCommand(bot, msg.chat.id, match?.[1] ?? "");
   });
 
+  bot.onText(/\/layout(?:\s+(.+))?/, async (msg, match) => {
+    await handleLayoutCommand(bot, msg.chat.id, match?.[1] ?? "");
+  });
+
   // Photo messages (compressed image)
   bot.on("photo", async (msg) => {
     if (!msg.photo || msg.photo.length === 0) return;
@@ -389,6 +430,31 @@ export function startTelegramBot(token: string): TelegramBot {
 
     if (isDocx || isDoc) {
       const ext = isDoc && !name.toLowerCase().endsWith(".docx") ? "doc" : "docx";
+
+      // /layout command flow: params already stored, just need the file
+      const layout = pendingLayoutRequest.get(msg.chat.id);
+      if (layout) {
+        pendingLayoutRequest.delete(msg.chat.id);
+
+        if (layout.expiresAt < Date.now()) {
+          await bot.sendMessage(msg.chat.id, "⏰ O comando /layout expirou (5 min). Digite novamente.");
+          return;
+        }
+
+        const statusMsg = await bot.sendMessage(
+          msg.chat.id,
+          `⏳ Processando layout e gerando *${layout.questionCount}* questões de *${layout.discipline}*...`,
+          { parse_mode: "Markdown" }
+        );
+        await generateAndSendExamFromTemplate(
+          bot, msg.chat.id, statusMsg.message_id,
+          doc.file_id, ext,
+          layout.discipline, layout.questionCount, layout.topics,
+          layout.serie, layout.turma
+        );
+        return;
+      }
+
       await handleTemplateDocument(bot, msg.chat.id, doc.file_id, ext, msg.caption);
       return;
     }
