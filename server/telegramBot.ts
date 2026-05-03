@@ -199,7 +199,9 @@ async function generateAndSendExamFromTemplate(
       templateBuffer,
       questions,
       discipline,
-      originalExt
+      originalExt,
+      serie,
+      turma,
     );
 
     await bot.editMessageText("✅ Prova gerada com template! Enviando PDFs...", {

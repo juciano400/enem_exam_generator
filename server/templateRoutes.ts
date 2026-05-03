@@ -13,14 +13,16 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB max
   fileFilter: (_req, file, cb) => {
-    if (
-      file.mimetype ===
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-      file.originalname.endsWith(".docx")
-    ) {
+    const isDocx =
+      file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      file.originalname.toLowerCase().endsWith(".docx");
+    const isDoc =
+      file.mimetype === "application/msword" ||
+      file.originalname.toLowerCase().endsWith(".doc");
+    if (isDocx || isDoc) {
       cb(null, true);
     } else {
-      cb(new Error("Apenas arquivos .docx são aceitos como template."));
+      cb(new Error("Apenas arquivos .doc ou .docx são aceitos como template."));
     }
   },
 });
@@ -64,11 +66,14 @@ router.post(
         topics: topics.trim(),
       });
 
+      const originalExt = req.file.originalname.toLowerCase().endsWith(".doc") ? "doc" : "docx";
+
       // 2. Process template — inject questions and convert to PDF
       const { examPdfBytes, answerPdfBytes } = await processTemplate(
         req.file.buffer,
         questions,
-        discipline
+        discipline,
+        originalExt,
       );
 
       // 3. Upload PDFs to storage
