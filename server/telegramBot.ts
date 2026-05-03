@@ -1,3 +1,7 @@
+// Suppress node-telegram-bot-api content-type deprecation warning
+process.env.NTBA_FIX_319 = "1";
+process.env.NTBA_FIX_350 = "1";
+
 import TelegramBot from "node-telegram-bot-api";
 import { generateQuestions, generateQuestionsFromMedia } from "./gemini";
 import { generateExamPDF, generateAnswerPDF } from "./pdfGenerator";
@@ -547,9 +551,26 @@ export function startTelegramBot(token: string): TelegramBot {
     );
   });
 
-  bot.on("polling_error", (err) => {
-    console.error("[TelegramBot] Polling error:", err.message);
+  bot.on("polling_error", (err: Error & { code?: string }) => {
+    // 409 = another instance is still running (common during rolling deploys)
+    if (err.message?.includes("409")) {
+      console.warn("[TelegramBot] 409 Conflict — another instance active, retrying in 5s...");
+      bot.stopPolling().then(() => {
+        setTimeout(() => bot.startPolling(), 5000);
+      });
+    } else {
+      console.error("[TelegramBot] Polling error:", err.message);
+    }
   });
+
+  // Graceful shutdown — stop polling before process exits so Railway can
+  // terminate cleanly without leaving a ghost instance that causes 409s
+  const shutdown = () => {
+    console.log("[TelegramBot] Shutting down polling...");
+    bot.stopPolling().finally(() => process.exit(0));
+  };
+  process.once("SIGTERM", shutdown);
+  process.once("SIGINT",  shutdown);
 
   console.log("[TelegramBot] Bot started successfully.");
   return bot;
