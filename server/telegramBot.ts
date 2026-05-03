@@ -3,6 +3,7 @@ process.env.NTBA_FIX_319 = "1";
 process.env.NTBA_FIX_350 = "1";
 
 import TelegramBot from "node-telegram-bot-api";
+import type { Application } from "express";
 import { generateQuestions, generateQuestionsFromMedia } from "./gemini";
 import { generateExamPDF, generateAnswerPDF } from "./pdfGenerator";
 import { processTemplate } from "./templateProcessor";
@@ -391,8 +392,15 @@ async function handleTemplateDocument(
 
 // ── Bot bootstrap ─────────────────────────────────────────────────────────────
 
-export function startTelegramBot(token: string): TelegramBot {
-  const bot = new TelegramBot(token, { polling: true });
+export function startTelegramBot(token: string, app?: Application): TelegramBot {
+  const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL?.replace(/\/$/, "");
+  const useWebhook  = !!webhookUrl && !!app;
+
+  // Webhook mode: Telegram POSTs updates to our Express server.
+  // No polling → no 409 conflicts between Railway instances.
+  const bot = useWebhook
+    ? new TelegramBot(token, { webHook: false })
+    : new TelegramBot(token, { polling: true });
 
   bot.onText(/\/start/, async (msg) => {
     await bot.sendMessage(msg.chat.id, HELP_TEXT, { parse_mode: "Markdown" });
@@ -551,27 +559,40 @@ export function startTelegramBot(token: string): TelegramBot {
     );
   });
 
-  bot.on("polling_error", (err: Error & { code?: string }) => {
-    // 409 = another instance is still running (common during rolling deploys)
-    if (err.message?.includes("409")) {
-      console.warn("[TelegramBot] 409 Conflict — another instance active, retrying in 5s...");
-      bot.stopPolling().then(() => {
-        setTimeout(() => bot.startPolling(), 5000);
-      });
-    } else {
-      console.error("[TelegramBot] Polling error:", err.message);
-    }
-  });
+  if (useWebhook) {
+    // Register Express route BEFORE setting the webhook so Telegram can verify
+    const hookPath = `/telegram-webhook/${token}`;
+    app!.post(hookPath, (req, res) => {
+      bot.processUpdate(req.body);
+      res.sendStatus(200);
+    });
 
-  // Graceful shutdown — stop polling before process exits so Railway can
-  // terminate cleanly without leaving a ghost instance that causes 409s
-  const shutdown = () => {
-    console.log("[TelegramBot] Shutting down polling...");
-    bot.stopPolling().finally(() => process.exit(0));
-  };
-  process.once("SIGTERM", shutdown);
-  process.once("SIGINT",  shutdown);
+    // Tell Telegram where to send updates
+    bot.setWebHook(`${webhookUrl}${hookPath}`)
+      .then(() => console.log(`[TelegramBot] Webhook set → ${webhookUrl}${hookPath}`))
+      .catch((err: Error) => console.error("[TelegramBot] Failed to set webhook:", err.message));
 
-  console.log("[TelegramBot] Bot started successfully.");
+    console.log("[TelegramBot] Running in webhook mode.");
+  } else {
+    // Polling mode (local dev or no TELEGRAM_WEBHOOK_URL configured)
+    bot.on("polling_error", (err: Error & { code?: string }) => {
+      if (err.message?.includes("409")) {
+        console.warn("[TelegramBot] 409 Conflict — retrying polling in 5s...");
+        bot.stopPolling().then(() => setTimeout(() => bot.startPolling(), 5000));
+      } else {
+        console.error("[TelegramBot] Polling error:", err.message);
+      }
+    });
+
+    const shutdown = () => {
+      console.log("[TelegramBot] Stopping polling...");
+      bot.stopPolling().finally(() => process.exit(0));
+    };
+    process.once("SIGTERM", shutdown);
+    process.once("SIGINT",  shutdown);
+
+    console.log("[TelegramBot] Running in polling mode.");
+  }
+
   return bot;
 }

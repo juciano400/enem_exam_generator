@@ -65,7 +65,7 @@ async function startServer() {
 
   const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
   if (telegramToken) {
-    startTelegramBot(telegramToken);
+    startTelegramBot(telegramToken, app);
   } else {
     console.log("[TelegramBot] TELEGRAM_BOT_TOKEN not set — bot disabled.");
   }
