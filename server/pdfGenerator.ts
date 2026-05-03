@@ -1,5 +1,24 @@
 import { PDFDocument, rgb, StandardFonts, PDFPage, PDFFont } from "pdf-lib";
+import { readFileSync } from "fs";
 import type { Question } from "./gemini";
+
+// ── Arial-equivalent font (Liberation Sans — metrically identical to Arial) ──
+const FONT_R = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
+const FONT_B = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf";
+
+async function embedFonts(doc: PDFDocument): Promise<{ f: PDFFont; fb: PDFFont }> {
+  try {
+    const [rb, bb] = [readFileSync(FONT_R), readFileSync(FONT_B)];
+    const [f, fb]  = await Promise.all([doc.embedFont(rb), doc.embedFont(bb)]);
+    return { f, fb };
+  } catch {
+    const [f, fb] = await Promise.all([
+      doc.embedFont(StandardFonts.Helvetica),
+      doc.embedFont(StandardFonts.HelveticaBold),
+    ]);
+    return { f, fb };
+  }
+}
 
 // ── A4 page ───────────────────────────────────────────────────────────────────
 const PW = 595.28;
@@ -27,16 +46,16 @@ const VLGRAY= rgb(0.95, 0.95, 0.96);
 const WHITE = rgb(1, 1, 1);
 const GREEN = rgb(0.08, 0.46, 0.18);
 
-// ── Font sizes ────────────────────────────────────────────────────────────────
+// ── Font sizes (body = Arial/Liberation Sans 10) ──────────────────────────────
 const SZ_TTL  = 21;
 const SZ_DISC = 11;
 const SZ_INFO =  8;
 const SZ_QNUM =  9;
-const SZ_CTX  =  8.5;
-const SZ_STMT =  9.5;
-const SZ_ALT  =  9;
+const SZ_CTX  =  9;
+const SZ_STMT = 10;
+const SZ_ALT  = 10;
 const SZ_SMRY =  8;
-const SZ_EXP  =  9;
+const SZ_EXP  =  9.5;
 
 // ── Text wrap ─────────────────────────────────────────────────────────────────
 function wrap(text: string, font: PDFFont, size: number, maxW: number): string[] {
@@ -117,17 +136,17 @@ async function nextCol(s: St): Promise<void> {
 
 // ── Question height estimate (to decide column/page breaks) ──────────────────
 function estH(q: Question, f: PDFFont, fb: PDFFont): number {
-  let h = 8 + 19 + 6; // gap + badge + gap below badge
+  let h = 6 + SZ_QNUM + 8; // gap + "QUESTÃO X" label + gap below
 
   if (q.context?.trim()) {
-    const n = wrap(q.context, f, SZ_CTX, COL_W - 22).length;
-    h += n * SZ_CTX * 1.45 + 16;
+    const n = wrap(q.context, f, SZ_CTX, COL_W - 16).length;
+    h += n * SZ_CTX * 1.45 + 12;
   }
 
-  h += 4 + wrap(q.statement, fb, SZ_STMT, COL_W - 6).length * SZ_STMT * 1.45 + 6;
+  h += 4 + wrap(q.statement, fb, SZ_STMT, COL_W - 6).length * SZ_STMT * 1.42 + 6;
 
   for (const alt of q.alternatives) {
-    h += wrap(alt.text, f, SZ_ALT, COL_W - 24).length * SZ_ALT * 1.45 + 3;
+    h += wrap(alt.text, f, SZ_ALT, COL_W - 22).length * SZ_ALT * 1.42 + 3;
   }
 
   h += 14; // bottom separator + gap
@@ -137,35 +156,35 @@ function estH(q: Question, f: PDFFont, fb: PDFFont): number {
 // ── Draw one question into the current column ─────────────────────────────────
 function drawQ(s: St, q: Question): void {
   const x = cx(s);
-  let y = cy(s) - 8;
+  let y = cy(s) - 6;
 
-  // ── Number badge ──────────────────────────────────────────────────────
-  const bW = 30, bH = 17;
-  s.page.drawRectangle({ x, y: y - bH, width: bW, height: bH, color: BLUE });
-  const ns = String(q.number);
-  const nW = s.fb.widthOfTextAtSize(ns, SZ_QNUM);
-  s.page.drawText(ns, {
-    x: x + (bW - nW) / 2, y: y - bH + 4,
-    size: SZ_QNUM, font: s.fb, color: WHITE,
+  // ── "QUESTÃO X" label ─────────────────────────────────────────────────
+  const qLabel = `QUESTÃO ${q.number}`;
+  s.page.drawText(qLabel, {
+    x, y,
+    size: SZ_QNUM, font: s.fb, color: BLUE,
   });
-  y -= bH + 6;
+  y -= SZ_QNUM + 4;
+  s.page.drawLine({
+    start: { x, y }, end: { x: x + COL_W, y },
+    thickness: 0.5, color: BLUE,
+  });
+  y -= 6;
 
   // ── Context / texto de apoio ──────────────────────────────────────────
   if (q.context?.trim()) {
-    const lines = wrap(q.context, s.f, SZ_CTX, COL_W - 20);
-    const boxH  = lines.length * SZ_CTX * 1.45 + 14;
+    const lines = wrap(q.context, s.f, SZ_CTX, COL_W - 14);
+    const blockH = lines.length * SZ_CTX * 1.45 + 10;
 
-    // light background
-    s.page.drawRectangle({ x, y: y - boxH, width: COL_W, height: boxH, color: VLGRAY });
-    // left blue accent
-    s.page.drawRectangle({ x, y: y - boxH, width: 3,     height: boxH, color: BLUE });
+    // left blue accent only — no background fill
+    s.page.drawRectangle({ x, y: y - blockH, width: 2.5, height: blockH, color: BLUE });
 
-    let ty = y - 8;
+    let ty = y - 6;
     for (const line of lines) {
-      s.page.drawText(line, { x: x + 9, y: ty, size: SZ_CTX, font: s.f, color: DARK });
+      s.page.drawText(line, { x: x + 8, y: ty, size: SZ_CTX, font: s.f, color: DARK });
       ty -= SZ_CTX * 1.45;
     }
-    y -= boxH + 8;
+    y -= blockH + 6;
   }
 
   // ── Statement ─────────────────────────────────────────────────────────
@@ -177,31 +196,31 @@ function drawQ(s: St, q: Question): void {
   }
   y -= 6;
 
-  // ── Alternatives with circle bubbles ─────────────────────────────────
+  // ── Alternatives with filled circle bubbles ───────────────────────────
   for (const alt of q.alternatives) {
     const aLines = wrap(alt.text, s.f, SZ_ALT, COL_W - 24);
 
-    // Unfilled circle with blue border
-    const cr  = 5;
-    const bx  = x + 6;
+    // Outlined circle — ENEM style
+    const cr  = 5.5;
+    const bx  = x + 7;
     const by  = y - 3.5;
-    s.page.drawCircle({ x: bx, y: by, size: cr, color: WHITE, borderColor: BLUE, borderWidth: 0.65 });
+    s.page.drawCircle({ x: bx, y: by, size: cr, color: WHITE, borderColor: DARK, borderWidth: 0.7 });
 
     // Letter inside circle
-    const lW = s.fb.widthOfTextAtSize(alt.letter, 6);
+    const lW = s.fb.widthOfTextAtSize(alt.letter, 6.5);
     s.page.drawText(alt.letter, {
-      x: bx - lW / 2, y: by - 3,
-      size: 6, font: s.fb, color: BLUE,
+      x: bx - lW / 2, y: by - 3.2,
+      size: 6.5, font: s.fb, color: BLACK,
     });
 
     // Text lines (first line aligns with circle, rest indent)
     for (let i = 0; i < aLines.length; i++) {
       s.page.drawText(aLines[i], {
-        x: x + 17, y: y - i * (SZ_ALT * 1.45),
+        x: x + 19, y: y - i * (SZ_ALT * 1.42),
         size: SZ_ALT, font: s.f, color: BLACK,
       });
     }
-    y -= aLines.length * SZ_ALT * 1.45 + 3;
+    y -= aLines.length * SZ_ALT * 1.42 + 3;
   }
 
   // ── Thin separator ────────────────────────────────────────────────────
@@ -298,9 +317,8 @@ export async function generateExamPDF(
   sourceImageBuffer?: Buffer,
   sourceImageMime?:   string,
 ): Promise<Uint8Array> {
-  const doc = await PDFDocument.create();
-  const f   = await doc.embedFont(StandardFonts.Helvetica);
-  const fb  = await doc.embedFont(StandardFonts.HelveticaBold);
+  const doc      = await PDFDocument.create();
+  const { f, fb } = await embedFonts(doc);
 
   const page1 = doc.addPage([PW, PH]);
   drawHdr(page1, f, fb, discipline, 1);
@@ -388,9 +406,8 @@ export async function generateAnswerPDF(
   questions: Question[],
   discipline: string,
 ): Promise<Uint8Array> {
-  const doc = await PDFDocument.create();
-  const f   = await doc.embedFont(StandardFonts.Helvetica);
-  const fb  = await doc.embedFont(StandardFonts.HelveticaBold);
+  const doc        = await PDFDocument.create();
+  const { f, fb }  = await embedFonts(doc);
 
   let pn   = 1;
   let page = doc.addPage([PW, PH]);

@@ -15,10 +15,10 @@ const upload = multer({
   fileFilter: (_req, file, cb) => {
     const isDocx =
       file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-      file.originalname.endsWith(".docx");
+      file.originalname.toLowerCase().endsWith(".docx");
     const isDoc =
       file.mimetype === "application/msword" ||
-      file.originalname.endsWith(".doc");
+      file.originalname.toLowerCase().endsWith(".doc");
     if (isDocx || isDoc) {
       cb(null, true);
     } else {
@@ -68,12 +68,14 @@ router.post(
         topics: topics.trim(),
       });
 
+      const originalExt = req.file.originalname.toLowerCase().endsWith(".doc") ? "doc" : "docx";
+
       // 2. Process template — inject questions and convert to PDF
       const { examPdfBytes, answerPdfBytes } = await processTemplate(
         req.file.buffer,
         questions,
         discipline,
-        originalExt
+        originalExt,
       );
 
       // 3. Upload PDFs to storage

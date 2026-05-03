@@ -46,35 +46,52 @@ export async function generateQuestionsFromMedia(
 
   const disciplineContext = DISCIPLINE_CONTEXT[input.discipline] || input.discipline;
 
-  const prompt = `Você é um especialista em elaboração de questões no padrão ENEM (Exame Nacional do Ensino Médio) do Brasil.
+  const prompt = `Você é um professor examinador sênior do ENEM (Exame Nacional do Ensino Médio) do Brasil, com expertise em ${input.discipline} (${disciplineContext}).
 
-Analise o conteúdo do material enviado (imagem ou PDF de páginas de livro/apostila) e gere exatamente ${input.questionCount} questões de múltipla escolha sobre ${input.discipline} (${disciplineContext}) baseadas exclusivamente no conteúdo desse material.
+Analise DETALHADAMENTE o material enviado (imagem ou PDF de livro/apostila) e elabore EXATAMENTE ${input.questionCount} questões de múltipla escolha baseadas nos conceitos, trechos e conteúdos presentes nesse material.
 
-REGRAS OBRIGATÓRIAS:
-1. As questões devem ser baseadas no conteúdo do material enviado
-2. Cada questão deve seguir o padrão ENEM: contextualização, enunciado claro, 5 alternativas (A, B, C, D, E)
-3. As questões devem exigir interpretação, análise crítica e raciocínio — não apenas memorização
-4. Apenas UMA alternativa deve ser correta
-5. As alternativas incorretas devem ser plausíveis (distratores bem elaborados)
-6. A explicação deve ser detalhada, justificando por que a resposta correta está certa e as demais erradas
+CRITÉRIOS DE QUALIDADE OBRIGATÓRIOS:
 
-Retorne APENAS um JSON válido com o seguinte formato (sem markdown, sem texto extra):
+▸ TEXTO DE APOIO (campo "context"):
+  - Extraia ou adapte trechos reais do material enviado
+  - Use dados, citações, definições ou situações presentes no conteúdo
+  - O contexto deve ser indispensável para responder a questão (não decorativo)
+  - Mínimo de 2 frases completas
+
+▸ ENUNCIADO (campo "statement"):
+  - Use verbos de raciocínio: analise, identifique, relacione, compare, explique, deduza, infira
+  - Formule como situação-problema ou pedido de análise — nunca "O que é X?"
+  - O enunciado deve ser diretamente dependente do texto de apoio
+
+▸ ALTERNATIVAS (5 por questão — A a E):
+  - Apenas UMA correta; quatro distratores plausíveis e tecnicamente elaborados
+  - Distratores devem representar equívocos conceituais reais ou generalizações indevidas
+  - Comprimento similar entre todas as alternativas (evitar dicas visuais)
+  - Proibido: "todas as anteriores", "nenhuma das anteriores", alternativas absurdas
+
+▸ DIFICULDADE: 40% médias, 60% difíceis — nenhuma questão de memorização pura
+
+▸ EXPLICAÇÃO (campo "explanation"):
+  - Por que a resposta correta está certa (fundamentação teórica)
+  - Por que cada distrator está errado (análise individual dos erros)
+
+Retorne APENAS JSON válido (sem markdown, sem texto extra):
 {
   "questions": [
     {
       "number": 1,
       "discipline": "${input.discipline}",
-      "context": "Trecho ou referência do material que embasa a questão",
-      "statement": "Enunciado da questão",
+      "context": "Trecho ou situação extraída do material que embasa a questão",
+      "statement": "Enunciado que exige análise ou interpretação",
       "alternatives": [
-        { "letter": "A", "text": "Texto da alternativa A" },
-        { "letter": "B", "text": "Texto da alternativa B" },
-        { "letter": "C", "text": "Texto da alternativa C" },
-        { "letter": "D", "text": "Texto da alternativa D" },
-        { "letter": "E", "text": "Texto da alternativa E" }
+        { "letter": "A", "text": "Alternativa A" },
+        { "letter": "B", "text": "Alternativa B" },
+        { "letter": "C", "text": "Alternativa C" },
+        { "letter": "D", "text": "Alternativa D" },
+        { "letter": "E", "text": "Alternativa E" }
       ],
       "correctAnswer": "A",
-      "explanation": "Explicação detalhada da resposta correta e por que as demais estão erradas"
+      "explanation": "Justificativa completa da resposta correta e análise dos distratores"
     }
   ]
 }`;
@@ -104,37 +121,57 @@ export async function generateQuestions(input: GenerateQuestionsInput): Promise<
 
   const disciplineContext = DISCIPLINE_CONTEXT[input.discipline] || input.discipline;
 
-  const prompt = `Você é um especialista em elaboração de questões no padrão ENEM (Exame Nacional do Ensino Médio) do Brasil.
+  const prompt = `Você é um professor examinador sênior do ENEM (Exame Nacional do Ensino Médio) do Brasil, com especialização em ${input.discipline} (${disciplineContext}).
 
-Gere exatamente ${input.questionCount} questões de múltipla escolha sobre ${input.discipline} (${disciplineContext}).
+Elabore EXATAMENTE ${input.questionCount} questões de múltipla escolha no padrão ENEM sobre os seguintes conteúdos: ${input.topics}
 
-Conteúdos/assuntos a abordar: ${input.topics}
+CRITÉRIOS DE QUALIDADE OBRIGATÓRIOS:
 
-REGRAS OBRIGATÓRIAS:
-1. Cada questão deve seguir rigorosamente o padrão ENEM: contextualização, enunciado claro, 5 alternativas (A, B, C, D, E)
-2. As questões devem exigir interpretação, análise crítica e raciocínio — não apenas memorização
-3. Apenas UMA alternativa deve ser correta
-4. As alternativas incorretas devem ser plausíveis (distratores bem elaborados)
-5. O contexto pode incluir textos, dados, citações ou situações-problema
-6. A explicação deve ser detalhada, justificando por que a resposta correta está certa e as demais erradas
+▸ TEXTO DE APOIO (campo "context") — OBRIGATÓRIO em todas as questões:
+  Escolha UM dos seguintes formatos conforme o conteúdo:
+  • Trecho literário, filosófico, sociológico ou histórico (com autor e obra entre parênteses)
+  • Dado estatístico real, porcentagem ou índice com fonte
+  • Notícia ou reportagem resumida com tema atual e relevante
+  • Citação de lei, decreto ou documento oficial
+  • Situação-problema do cotidiano que contextualiza o conceito
+  O contexto deve ser INDISPENSÁVEL para resolver a questão — nunca decorativo.
 
-Retorne APENAS um JSON válido com o seguinte formato (sem markdown, sem texto extra):
+▸ ENUNCIADO (campo "statement"):
+  • Use verbos de ordem superior: analise, relacione, compare, identifique, infira, deduza, avalie, interprete
+  • Formule como situação-problema ou pedido de análise crítica
+  • Proibido perguntas diretas do tipo "O que é X?" ou "Quem foi Y?"
+  • O enunciado deve conectar o texto de apoio ao conceito cobrado
+
+▸ ALTERNATIVAS (A a E — 5 por questão):
+  • UMA correta; quatro distratores tecnicamente elaborados
+  • Distratores = erros conceituais reais, generalizações indevidas ou confusões terminológicas
+  • Todas com comprimento similar (evitar dicas visuais)
+  • Proibido: "todas as anteriores", "nenhuma das anteriores", alternativas absurdas ou claramente erradas
+
+▸ DIFICULDADE: 30% médias, 70% difíceis — zero questões de memorização pura
+
+▸ EXPLICAÇÃO (campo "explanation") — mínimo 3 frases:
+  • Fundamente teoricamente por que a resposta correta está certa
+  • Explique individualmente o erro de cada distrator
+  • Relacione com o conteúdo cobrado
+
+Retorne APENAS JSON válido (sem markdown, sem texto extra):
 {
   "questions": [
     {
       "number": 1,
       "discipline": "${input.discipline}",
-      "context": "Texto de apoio ou contexto da questão (pode ser vazio se não houver)",
-      "statement": "Enunciado da questão",
+      "context": "Texto de apoio rico e relevante",
+      "statement": "Enunciado que exige análise crítica ou raciocínio",
       "alternatives": [
-        { "letter": "A", "text": "Texto da alternativa A" },
-        { "letter": "B", "text": "Texto da alternativa B" },
-        { "letter": "C", "text": "Texto da alternativa C" },
-        { "letter": "D", "text": "Texto da alternativa D" },
-        { "letter": "E", "text": "Texto da alternativa E" }
+        { "letter": "A", "text": "Alternativa A" },
+        { "letter": "B", "text": "Alternativa B" },
+        { "letter": "C", "text": "Alternativa C" },
+        { "letter": "D", "text": "Alternativa D" },
+        { "letter": "E", "text": "Alternativa E" }
       ],
       "correctAnswer": "A",
-      "explanation": "Explicação detalhada da resposta correta e por que as demais estão erradas"
+      "explanation": "Justificativa completa da resposta correta e análise de cada distrator"
     }
   ]
 }`;
