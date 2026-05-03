@@ -1,5 +1,24 @@
 import { PDFDocument, rgb, StandardFonts, PDFPage, PDFFont } from "pdf-lib";
+import { readFileSync } from "fs";
 import type { Question } from "./gemini";
+
+// ── Arial-equivalent font (Liberation Sans — metrically identical to Arial) ──
+const FONT_R = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf";
+const FONT_B = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf";
+
+async function embedFonts(doc: PDFDocument): Promise<{ f: PDFFont; fb: PDFFont }> {
+  try {
+    const [rb, bb] = [readFileSync(FONT_R), readFileSync(FONT_B)];
+    const [f, fb]  = await Promise.all([doc.embedFont(rb), doc.embedFont(bb)]);
+    return { f, fb };
+  } catch {
+    const [f, fb] = await Promise.all([
+      doc.embedFont(StandardFonts.Helvetica),
+      doc.embedFont(StandardFonts.HelveticaBold),
+    ]);
+    return { f, fb };
+  }
+}
 
 // ── A4 page ───────────────────────────────────────────────────────────────────
 const PW = 595.28;
@@ -27,16 +46,16 @@ const VLGRAY= rgb(0.95, 0.95, 0.96);
 const WHITE = rgb(1, 1, 1);
 const GREEN = rgb(0.08, 0.46, 0.18);
 
-// ── Font sizes ────────────────────────────────────────────────────────────────
+// ── Font sizes (body = Arial/Liberation Sans 10) ──────────────────────────────
 const SZ_TTL  = 21;
 const SZ_DISC = 11;
 const SZ_INFO =  8;
 const SZ_QNUM =  9;
-const SZ_CTX  =  8.5;
-const SZ_STMT =  9.5;
-const SZ_ALT  =  9;
+const SZ_CTX  =  9;
+const SZ_STMT = 10;
+const SZ_ALT  = 10;
 const SZ_SMRY =  8;
-const SZ_EXP  =  9;
+const SZ_EXP  =  9.5;
 
 // ── Text wrap ─────────────────────────────────────────────────────────────────
 function wrap(text: string, font: PDFFont, size: number, maxW: number): string[] {
@@ -124,10 +143,10 @@ function estH(q: Question, f: PDFFont, fb: PDFFont): number {
     h += n * SZ_CTX * 1.45 + 12;
   }
 
-  h += 4 + wrap(q.statement, fb, SZ_STMT, COL_W - 6).length * SZ_STMT * 1.45 + 6;
+  h += 4 + wrap(q.statement, fb, SZ_STMT, COL_W - 6).length * SZ_STMT * 1.42 + 6;
 
   for (const alt of q.alternatives) {
-    h += wrap(alt.text, f, SZ_ALT, COL_W - 24).length * SZ_ALT * 1.45 + 3;
+    h += wrap(alt.text, f, SZ_ALT, COL_W - 22).length * SZ_ALT * 1.42 + 3;
   }
 
   h += 14; // bottom separator + gap
@@ -181,27 +200,27 @@ function drawQ(s: St, q: Question): void {
   for (const alt of q.alternatives) {
     const aLines = wrap(alt.text, s.f, SZ_ALT, COL_W - 24);
 
-    // Solid filled circle
-    const cr  = 5;
-    const bx  = x + 6;
+    // Outlined circle — ENEM style
+    const cr  = 5.5;
+    const bx  = x + 7;
     const by  = y - 3.5;
-    s.page.drawCircle({ x: bx, y: by, size: cr, color: BLUE });
+    s.page.drawCircle({ x: bx, y: by, size: cr, color: WHITE, borderColor: DARK, borderWidth: 0.7 });
 
-    // White letter inside circle
-    const lW = s.fb.widthOfTextAtSize(alt.letter, 6);
+    // Letter inside circle
+    const lW = s.fb.widthOfTextAtSize(alt.letter, 6.5);
     s.page.drawText(alt.letter, {
-      x: bx - lW / 2, y: by - 3,
-      size: 6, font: s.fb, color: WHITE,
+      x: bx - lW / 2, y: by - 3.2,
+      size: 6.5, font: s.fb, color: BLACK,
     });
 
     // Text lines (first line aligns with circle, rest indent)
     for (let i = 0; i < aLines.length; i++) {
       s.page.drawText(aLines[i], {
-        x: x + 17, y: y - i * (SZ_ALT * 1.45),
+        x: x + 19, y: y - i * (SZ_ALT * 1.42),
         size: SZ_ALT, font: s.f, color: BLACK,
       });
     }
-    y -= aLines.length * SZ_ALT * 1.45 + 3;
+    y -= aLines.length * SZ_ALT * 1.42 + 3;
   }
 
   // ── Thin separator ────────────────────────────────────────────────────
@@ -298,9 +317,8 @@ export async function generateExamPDF(
   sourceImageBuffer?: Buffer,
   sourceImageMime?:   string,
 ): Promise<Uint8Array> {
-  const doc = await PDFDocument.create();
-  const f   = await doc.embedFont(StandardFonts.Helvetica);
-  const fb  = await doc.embedFont(StandardFonts.HelveticaBold);
+  const doc      = await PDFDocument.create();
+  const { f, fb } = await embedFonts(doc);
 
   const page1 = doc.addPage([PW, PH]);
   drawHdr(page1, f, fb, discipline, 1);
@@ -388,9 +406,8 @@ export async function generateAnswerPDF(
   questions: Question[],
   discipline: string,
 ): Promise<Uint8Array> {
-  const doc = await PDFDocument.create();
-  const f   = await doc.embedFont(StandardFonts.Helvetica);
-  const fb  = await doc.embedFont(StandardFonts.HelveticaBold);
+  const doc        = await PDFDocument.create();
+  const { f, fb }  = await embedFonts(doc);
 
   let pn   = 1;
   let page = doc.addPage([PW, PH]);
