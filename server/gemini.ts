@@ -35,6 +35,19 @@ export interface GenerateQuestionsFromMediaInput {
   discipline: string;
 }
 
+function extractQuestions(text: string): Question[] {
+  // Strip markdown fences
+  let cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+
+  // Extract the outermost JSON object if there's surrounding text
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (match) cleaned = match[0];
+
+  const parsed = JSON.parse(cleaned);
+  if (!Array.isArray(parsed.questions)) throw new Error("Campo 'questions' ausente ou inválido");
+  return parsed.questions as Question[];
+}
+
 export async function generateQuestionsFromMedia(
   input: GenerateQuestionsFromMediaInput
 ): Promise<Question[]> {
@@ -42,7 +55,10 @@ export async function generateQuestionsFromMedia(
   if (!apiKey) throw new Error("GEMINI_API_KEY não configurada");
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    generationConfig: { responseMimeType: "application/json" } as any,
+  });
 
   const disciplineContext = DISCIPLINE_CONTEXT[input.discipline] || input.discipline;
 
@@ -106,10 +122,7 @@ Retorne APENAS JSON válido (sem markdown, sem texto extra):
     prompt,
   ]);
 
-  const text = result.response.text();
-  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-  const parsed = JSON.parse(cleaned);
-  return parsed.questions as Question[];
+  return extractQuestions(result.response.text());
 }
 
 export async function generateQuestions(input: GenerateQuestionsInput): Promise<Question[]> {
@@ -117,7 +130,10 @@ export async function generateQuestions(input: GenerateQuestionsInput): Promise<
   if (!apiKey) throw new Error("GEMINI_API_KEY não configurada");
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    generationConfig: { responseMimeType: "application/json" } as any,
+  });
 
   const disciplineContext = DISCIPLINE_CONTEXT[input.discipline] || input.discipline;
 
@@ -177,11 +193,5 @@ Retorne APENAS JSON válido (sem markdown, sem texto extra):
 }`;
 
   const result = await model.generateContent(prompt);
-  const text = result.response.text();
-
-  // Remove possíveis blocos markdown
-  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-
-  const parsed = JSON.parse(cleaned);
-  return parsed.questions as Question[];
+  return extractQuestions(result.response.text());
 }
