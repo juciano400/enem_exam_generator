@@ -59,7 +59,7 @@ router.post(
         return;
       }
 
-      const originalExt = req.file.originalname.endsWith(".doc") ? "doc" : "docx";
+      const originalExt = req.file.originalname.toLowerCase().endsWith(".doc") ? "doc" : "docx";
 
       // 1. Generate questions with Gemini
       const questions = await generateQuestions({
@@ -67,8 +67,6 @@ router.post(
         questionCount: count,
         topics: topics.trim(),
       });
-
-      const originalExt = req.file.originalname.toLowerCase().endsWith(".doc") ? "doc" : "docx";
 
       // 2. Process template — inject questions and convert to PDF
       const { examPdfBytes, answerPdfBytes } = await processTemplate(
